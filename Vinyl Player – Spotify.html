@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Vinyl">
+<meta name="theme-color" content="#FBFBFA">
+<title>Vinyl</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,400;0,6..96,600;1,6..96,400&amp;family=Familjen+Grotesk:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #FBFBFA;
+    --ink: #17171C;
+    --graphite: #6B6B75;
+    --hairline: rgba(23, 23, 28, 0.12);
+    --serif: "Bodoni Moda", "Didot", "Bodoni 72", Georgia, serif;
+    --sans: "Familjen Grotesk", "Avenir Next", "Helvetica Neue", Arial, sans-serif;
+    --disc: 100vh; /* landscape: record fills the height, centered on the left edge */
+    color-scheme: light;
+    box-sizing: border-box;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --paper: #141418; --ink: #F2F2F4; --graphite: #A0A0AA; --hairline: rgba(255,255,255,.14); color-scheme: dark; }
+  }
+  :root[data-theme="dark"] { --paper: #141418; --ink: #F2F2F4; --graphite: #A0A0AA; --hairline: rgba(255,255,255,.14); color-scheme: dark; }
+  *, *::before, *::after { box-sizing: border-box; }
+  html { height: 100%; }
+  body {
+    height: 100%; margin: 0; overflow: hidden;
+    background: var(--paper); color: var(--ink); font-family: var(--sans);
+    -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent;
+    user-select: none; -webkit-user-select: none;
+  }
+  [hidden] { display: none !important; }
+  #bg { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; display: block; }
+
+  .disc-area {
+    position: fixed; top: 0; left: 0; z-index: 1;
+    height: 100%; width: calc(var(--disc) / 2 + 140px);
+    overflow: hidden; cursor: pointer;
+  }
+  .disc {
+    position: absolute; top: 0; left: calc(var(--disc) / -2);
+    width: var(--disc); height: var(--disc); border-radius: 50%;
+    filter: drop-shadow(0 18px 28px rgba(20, 20, 40, .28)) drop-shadow(0 3px 6px rgba(20, 20, 40, .18));
+  }
+  .record { position: absolute; inset: 0; border-radius: 50%; will-change: transform; }
+  .record canvas { width: 100%; height: 100%; display: block; border-radius: 50%; }
+  .sheen {
+    position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
+    background: conic-gradient(from 90deg,
+      rgba(255,255,255,0) 0deg, rgba(255,255,255,.10) 30deg, rgba(255,255,255,0) 62deg,
+      rgba(255,255,255,0) 112deg, rgba(255,255,255,.07) 140deg, rgba(255,255,255,0) 170deg, rgba(255,255,255,0) 360deg);
+    -webkit-mask: radial-gradient(circle, transparent 0 34%, #000 35.5%);
+            mask: radial-gradient(circle, transparent 0 34%, #000 35.5%);
+  }
+  .spindle {
+    position: absolute; left: 50%; top: 50%; width: 2.2%; height: 2.2%; transform: translate(-50%, -50%);
+    border-radius: 50%; background: radial-gradient(circle at 35% 35%, #fff, #b8b8be 55%, #77777e);
+    box-shadow: 0 1px 2px rgba(0,0,0,.4);
+  }
+
+  /* Both panes share the space beside (landscape) or under (portrait) the record */
+  .pane {
+    position: fixed; z-index: 2; top: 0; right: 0; bottom: 0;
+    left: calc(var(--disc) / 2);
+    padding: clamp(24px, 5vh, 56px) clamp(32px, 6vw, 88px) clamp(24px, 5vh, 56px) clamp(40px, 6vw, 96px);
+    display: grid; align-content: center;
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: clamp(24px, 5vh, 48px);
+  }
+  .info { grid-template-areas: "meta" "progress" "controls" "device"; }
+  .meta { grid-area: meta; min-width: 0; }
+  .controls { grid-area: controls; display: flex; align-items: center; gap: clamp(8px, 1.4vw, 18px); }
+  .progress { grid-area: progress; }
+  .device { grid-area: device; margin: 0; font-size: 14px; color: var(--graphite); display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+
+  .title {
+    font-family: var(--serif); font-weight: 400; font-style: italic;
+    font-size: clamp(40px, 5.8vw, 84px); line-height: 1.02; letter-spacing: -.015em;
+    margin: 0 0 .25em; text-wrap: balance;
+    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .sub { margin: 0; font-size: clamp(16px, 1.9vw, 23px); color: var(--graphite); }
+  .sub b { color: var(--ink); font-weight: 500; }
+
+  .bar { position: relative; height: 24px; cursor: pointer; touch-action: none; display: flex; align-items: center; }
+  .bar::before { content: ""; position: absolute; left: 0; right: 0; height: 3px; border-radius: 3px; background: var(--hairline); }
+  .fill { position: absolute; left: 0; height: 3px; border-radius: 3px; background: var(--ink); width: 0; }
+  .knob { position: absolute; width: 12px; height: 12px; border-radius: 50%; background: var(--ink); transform: translateX(-50%); left: 0; }
+  .times { display: flex; justify-content: space-between; font-size: 13px; color: var(--graphite); font-variant-numeric: tabular-nums; margin-top: 2px; }
+
+  .btn {
+    appearance: none; border: 0; background: transparent; color: var(--ink);
+    width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center; cursor: pointer;
+    transition: background .2s, transform .15s;
+  }
+  .btn:active { transform: scale(.94); }
+  .btn:hover { background: var(--hairline); }
+  .btn svg { width: 24px; height: 24px; }
+  .btn.play { width: 72px; height: 72px; background: var(--ink); color: var(--paper); }
+  .btn.play:hover { background: var(--ink); }
+  .btn.play svg { width: 28px; height: 28px; }
+  .btn:focus-visible, .text-btn:focus-visible, .pill:focus-visible, input:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+  .text-btn { appearance: none; border: 0; background: none; padding: 6px 0; font: inherit; color: var(--graphite); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+
+  /* Connect pane */
+  .connect { max-width: 40rem; row-gap: clamp(16px, 3vh, 28px); user-select: text; -webkit-user-select: text; }
+  .connect h1 { font-family: var(--serif); font-style: italic; font-weight: 400; font-size: clamp(40px, 5.4vw, 72px); line-height: 1.02; margin: 0; }
+  .connect p { margin: 0; font-size: clamp(15px, 1.6vw, 18px); line-height: 1.5; color: var(--graphite); max-width: 34em; }
+  .connect ol { margin: 0; padding-left: 1.2em; font-size: clamp(15px, 1.6vw, 18px); line-height: 1.55; color: var(--graphite); }
+  .connect ol b { color: var(--ink); font-weight: 500; }
+  .field { display: grid; gap: 8px; }
+  .field label { font-size: 14px; color: var(--ink); font-weight: 500; }
+  .copyrow { display: flex; gap: 8px; align-items: stretch; }
+  .uri { flex: 1; min-width: 0; padding: 12px 14px; border-radius: 12px; background: rgba(255,255,255,.7); border: 1px solid var(--hairline); font-size: 14px; overflow-x: auto; white-space: nowrap; }
+  input[type=text] { width: 100%; padding: 14px 16px; border-radius: 12px; border: 1px solid var(--hairline); background: rgba(255,255,255,.85); font: inherit; font-size: 16px; color: var(--ink); }
+  .pill { appearance: none; border: 0; border-radius: 999px; padding: 14px 26px; font: inherit; font-size: 16px; font-weight: 500; cursor: pointer; background: var(--ink); color: var(--paper); justify-self: start; }
+  .pill.ghost { background: transparent; color: var(--ink); border: 1px solid var(--hairline); padding: 10px 16px; font-size: 14px; }
+  .actions { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
+
+  .toast {
+    position: fixed; z-index: 5; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+    transform: translate(-50%, 20px); opacity: 0; pointer-events: none;
+    background: var(--ink); color: var(--paper); padding: 12px 18px; border-radius: 14px; font-size: 15px;
+    transition: opacity .25s, transform .25s; max-width: calc(100vw - 48px);
+  }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+  @media (orientation: portrait) {
+    :root { --disc: 100vw; }
+    .disc-area { width: var(--disc); height: calc(var(--disc) / 2 + 140px); }
+    .disc { left: 0; top: calc(var(--disc) / -2); }
+    .pane {
+      left: 0; top: calc(var(--disc) / 2);
+      padding: clamp(20px, 3vh, 40px) clamp(28px, 6vw, 80px) clamp(18px, 3vh, 36px);
+      row-gap: clamp(22px, 3.6vh, 44px);
+    }
+    .info { text-align: center; }
+    .title { font-size: clamp(40px, 7.4vw, 84px); }
+    .sub { font-size: clamp(17px, 2.6vw, 24px); }
+    .controls, .device { justify-content: center; gap: clamp(18px, 4vw, 40px); }
+    .btn.play { width: 84px; height: 84px; }
+    .connect { max-width: none; overflow-y: auto; }
+  }
+  @media (prefers-reduced-motion: reduce) { .toast { transition: none; } }
+</style>
+<script type='text/javascript' nonce='PRrxUp0AIN6SbTMnYBJyGg==' src='https://a385d07b-3ebf-48d1-81d0-0f9f8ff33d2b.frame.claudeusercontent.com/GGLFT_X4EIOi5H-Fxi3RCGqKJuestkeGvr8_Sfr4pE--g4yW6CPvVt3Hsa1Si_Y7z5ELhOb8Px7xW6h9_BpEOMN1YJhJknW6HffWbSj9e3lY3-Natt-Cy5bQxLoWfL6br76ry6ldBraOUz9OoQ0DPmfDR5Kj-qF9cVPSH0WNppLKuXUrEJgd1wwB6yj02LMDvM7N7cz0fZNpB6-adedHrmP-WE8MNY5kcbU4MUdS82djsMfd-cy0z2fIvnKePd_WI46KEOnw62M6ttRJVOrTbF4LP1y86WLbqOUOOJZ8A5aqOEfgKTZ7XkGElM0d71lt6rwJrExdCm-V7Z0jziNvdXDJkoEm1c0XlXkqjKWbV2GLbnHwwd4uILfqw6CZriHvVxzGS-6XUiHiAQiwyuKNea2FQVgg_2Vo6fheFHjmSbNQkq26tL-eKulfICWUEsaqd9SDf6nVVjS30jOAKXw5l1ARHvt-EkRYFlAk5Wgu5fkSUE4vbR3WHXZxjk9s5b1wvUcAwL73ZABqv8-OAeAuIvCR6zeblx6o7tlXRUvrgb0aJlmqlWUyuxwDFAUQxjXiZ3vIt-U4Sj8rq01TORTwPBfioQZhWtV_ZmiCa4C6nAciDE69zYfT87uW2fa0kPs4dOQ1ycy_Jf-t6vAOyFkfsk_93IS18D1c7svrZBMywz4AAf0j4SetRPF9dy1RLLMAgJi-vUo5rvAEEjHiCPqJ6w'></script></head>
+<body>
+<canvas id="bg" aria-hidden="true"></canvas>
+
+<div class="disc-area" id="discArea" role="button" aria-label="Play or pause">
+  <div class="disc">
+    <div class="record" id="record"><canvas id="vinyl"></canvas></div>
+    <div class="sheen"></div>
+    <div class="spindle"></div>
+  </div>
+</div>
+
+<main class="pane info" id="player" aria-live="polite" hidden="">
+  <div class="meta">
+    <h1 class="title" id="title">Nothing playing</h1>
+    <p class="sub" id="subline"><b id="artist"></b><span id="sep"></span><span id="album"></span></p>
+  </div>
+  <div class="progress" id="progress">
+    <div class="bar" id="bar" role="slider" aria-label="Seek" tabindex="0" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+      <div class="fill" id="fill"></div>
+      <div class="knob" id="knob"></div>
+    </div>
+    <div class="times"><span id="cur">0:00</span><span id="dur">0:00</span></div>
+  </div>
+  <div class="controls">
+    <button class="btn" id="prev" aria-label="Previous track">
+      <svg viewbox="0 0 24 24" fill="currentColor"><path d="M6 5h2v14H6zM20 5v14L9.5 12z"/></svg>
+    </button>
+    <button class="btn play" id="play" aria-label="Play">
+      <svg viewbox="0 0 24 24" fill="currentColor" id="playIcon"><path d="M8 5v14l11-7z"/></svg>
+    </button>
+    <button class="btn" id="next" aria-label="Next track">
+      <svg viewbox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM4 5v14l10.5-7z"/></svg>
+    </button>
+  </div>
+  <p class="device"><span id="deviceName"></span><button class="text-btn" id="disconnect">Disconnect Spotify</button></p>
+</main>
+
+<section class="pane connect" id="setup" hidden="">
+  <h1>Connect Spotify</h1>
+  <p>This player shows whatever is playing on your Spotify account and controls it. It needs a free Spotify developer app first.</p>
+  <ol>
+    <li>Open <b>developer.spotify.com/dashboard</b> and create an app.</li>
+    <li>Add the address below as its <b>Redirect URI</b>, tick <b>Web API</b>, and save.</li>
+    <li>Copy the app’s <b>Client ID</b> and paste it here.</li>
+  </ol>
+  <div class="field">
+    <label for="redirect">Redirect URI</label>
+    <div class="copyrow"><div class="uri" id="redirect"></div><button class="pill ghost" id="copy">Copy</button></div>
+  </div>
+  <div class="field">
+    <label for="clientId">Client ID</label>
+    <input type="text" id="clientId" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="32 letters and numbers">
+  </div>
+  <button class="pill" id="saveConnect">Save and connect</button>
+</section>
+
+<section class="pane connect" id="login" hidden="">
+  <h1>Connect Spotify</h1>
+  <p>Log in with your Spotify account to show what’s playing and control it from here.</p>
+  <div class="actions">
+    <button class="pill" id="loginBtn">Log in with Spotify</button>
+    <button class="text-btn" id="changeId">Change Client ID</button>
+  </div>
+</section>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const RPM_DEG = 200; // 33⅓ rpm = 200°/s
+const DEFAULT_PALETTE = ["#F7A08A", "#F8D3A2", "#C8B2E6"];
+const state = { playing: false, basePos: 0, lastSync: 0, pos: 0, angle: 0, omega: 0, lockUntil: 0, dragging: false };
+let cur = null;      // current track
+let curArt = null;   // loaded cover image
+
+/* ---------- Storage (guarded: storage can be unavailable) ---------- */
+const LS = {
+  get: k => { try { return localStorage.getItem(k); } catch (e) { return null; } },
+  set: (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} },
+  del: k => { try { localStorage.removeItem(k); } catch (e) {} },
+};
+
+/* ---------- Helpers ---------- */
+function hexToRgb(h) { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
+function rgbToHex(r, g, b) { return "#" + [r, g, b].map(v => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, "0")).join(""); }
+function rgbToHsl(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b); let h = 0, s = 0; const l = (mx + mn) / 2;
+  if (mx !== mn) { const d = mx - mn; s = l > .5 ? d / (2 - mx - mn) : d / (mx + mn);
+    h = mx === r ? (g - b) / d + (g < b ? 6 : 0) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; h /= 6; }
+  return [h, s, l];
+}
+function hslToRgb(h, s, l) {
+  if (s === 0) return [l * 255, l * 255, l * 255];
+  const q = l < .5 ? l * (1 + s) : l + s - l * s, p = 2 * l - q;
+  const f = t => { if (t < 0) t += 1; if (t > 1) t -= 1; if (t < 1/6) return p + (q - p) * 6 * t; if (t < 1/2) return q; if (t < 2/3) return p + (q - p) * (2/3 - t) * 6; return p; };
+  return [f(h + 1/3) * 255, f(h) * 255, f(h - 1/3) * 255];
+}
+const fmt = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+let toastT;
+function toast(msg) { const t = $("toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("show"), 3800); }
+
+/* ---------- Shader background ---------- */
+const bg = { gl: null, prog: null, u: {}, t: 0, cols: [], target: [] };
+function initShader() {
+  const cv = $("bg");
+  const gl = cv.getContext("webgl", { antialias: false, premultipliedAlpha: false });
+  if (!gl) { document.body.style.background = "radial-gradient(circle at 30% 30%, #fde9df, #FBFBFA 60%)"; return; }
+  const vs = `attribute vec2 p; void main(){ gl_Position = vec4(p,0.,1.); }`;
+  const fs = `
+    precision highp float;
+    uniform vec2 u_res; uniform float u_t; uniform vec3 u_c1, u_c2, u_c3; uniform float u_amt;
+    float h(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+    float n(vec2 p){ vec2 i = floor(p), f = fract(p); vec2 u = f*f*(3.-2.*f);
+      return mix(mix(h(i), h(i+vec2(1,0)), u.x), mix(h(i+vec2(0,1)), h(i+vec2(1,1)), u.x), u.y); }
+    float fbm(vec2 p){ float v = 0., a = .5; for(int k=0;k<5;k++){ v += a*n(p); p = p*2.03 + 7.1; a *= .5; } return v; }
+    void main(){
+      vec2 uv = gl_FragCoord.xy / u_res;
+      vec2 p = uv * vec2(u_res.x / u_res.y, 1.) * 1.4;
+      float t = u_t * .05;
+      vec2 q = vec2(fbm(p + vec2(t, -t*.6)), fbm(p + vec2(-t*.8, t) + 4.3));
+      vec2 r = vec2(fbm(p + 2.2*q + vec2(1.7, 9.2) + t*.4), fbm(p + 2.2*q + vec2(8.3, 2.8) - t*.3));
+      float f = fbm(p + 2.0*r);
+      vec3 col = mix(u_c1, u_c2, smoothstep(.25, .75, f));
+      col = mix(col, u_c3, smoothstep(.35, .85, r.x));
+      vec3 paper = vec3(.984, .984, .980);
+      col = mix(vec3(dot(col, vec3(.333))), col, 1.3); // a touch more saturation
+      float w = u_amt * smoothstep(.2, .75, f*.6 + r.y*.6);
+      vec3 c = mix(paper, col, w * .85);
+      c -= (h(gl_FragCoord.xy + u_t) - .5) * .012;
+      gl_FragColor = vec4(c, 1.);
+    }`;
+  const sh = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); return s; };
+  const prog = gl.createProgram();
+  gl.attachShader(prog, sh(gl.VERTEX_SHADER, vs)); gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, fs));
+  gl.linkProgram(prog); gl.useProgram(prog);
+  const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 3,-1, -1,3]), gl.STATIC_DRAW);
+  const loc = gl.getAttribLocation(prog, "p"); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+  ["u_res","u_t","u_c1","u_c2","u_c3","u_amt"].forEach(k => bg.u[k] = gl.getUniformLocation(prog, k));
+  bg.gl = gl; bg.amt = 0.6;
+  resizeShader();
+}
+function resizeShader() {
+  if (!bg.gl) return;
+  const cv = $("bg"), scale = 0.5; // soft background, half resolution keeps it light on iPad
+  cv.width = Math.round(innerWidth * scale); cv.height = Math.round(innerHeight * scale);
+  bg.gl.viewport(0, 0, cv.width, cv.height);
+}
+function renderShader(dt) {
+  if (!bg.gl) return;
+  const gl = bg.gl, k = Math.min(1, dt * 0.9);
+  bg.cols.forEach((c, j) => c.forEach((v, m) => c[m] = v + (bg.target[j][m] - v) * k));
+  const targetAmt = state.playing ? 1 : 0.55;
+  bg.amt += (targetAmt - bg.amt) * Math.min(1, dt * 0.8);
+  bg.t += dt * (reduceMotion ? 0.15 : (state.playing ? 1 : 0.3));
+  gl.uniform2f(bg.u.u_res, gl.canvas.width, gl.canvas.height);
+  gl.uniform1f(bg.u.u_t, bg.t);
+  gl.uniform3fv(bg.u.u_c1, bg.cols[0]); gl.uniform3fv(bg.u.u_c2, bg.cols[1]); gl.uniform3fv(bg.u.u_c3, bg.cols[2]);
+  gl.uniform1f(bg.u.u_amt, bg.amt);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+}
+
+
+
+function setPalette(hexes, instant) {
+  bg.target = hexes.map(h => hexToRgb(h).map(v => v / 255));
+  if (instant || !bg.cols.length) bg.cols = bg.target.map(c => c.slice());
+}
+
+/* ---------- Colors from the album cover ---------- */
+function paletteFrom(img) {
+  try {
+    const c = document.createElement("canvas"); c.width = c.height = 32;
+    const x = c.getContext("2d", { willReadFrequently: true });
+    x.drawImage(img, 0, 0, 32, 32);
+    const d = x.getImageData(0, 0, 32, 32).data;
+    const buckets = new Map();
+    for (let i = 0; i < d.length; i += 4) {
+      const [h, s, l] = rgbToHsl(d[i], d[i + 1], d[i + 2]);
+      if (l < .1 || l > .94) continue;
+      const key = s < .15 ? "grey" : Math.round(h * 12) % 12;
+      const w = .15 + s * s;
+      const b = buckets.get(key) || { r: 0, g: 0, b: 0, w: 0 };
+      b.r += d[i] * w; b.g += d[i + 1] * w; b.b += d[i + 2] * w; b.w += w; buckets.set(key, b);
+    }
+    const ranked = [...buckets.values()].sort((a, b) => b.w - a.w).map(b => [b.r / b.w, b.g / b.w, b.b / b.w]);
+    if (!ranked.length) return null;
+    while (ranked.length < 3) ranked.push(ranked[ranked.length - 1]);
+    // keep them light and soft so the background stays mostly white
+    return ranked.slice(0, 3).map(([r, g, b], i) => {
+      let [h, s, l] = rgbToHsl(r, g, b);
+      if (i > 0 && ranked[i] === ranked[i - 1]) h = (h + .08 * i) % 1;
+      s = Math.min(.85, Math.max(.35, s * 1.1)); l = Math.min(.82, Math.max(.62, l));
+      return rgbToHex(...hslToRgb(h, s, l));
+    });
+  } catch (e) { return null; } // image not readable (no CORS): keep current colors
+}
+function loadImage(url) {
+  return new Promise(res => {
+    if (!url) return res(null);
+    const im = new Image(); im.crossOrigin = "anonymous";
+    im.onload = () => res(im);
+    im.onerror = () => { const im2 = new Image(); im2.onload = () => res(im2); im2.onerror = () => res(null); im2.src = url; };
+    im.src = url;
+  });
+}
+
+/* ---------- Vinyl canvas ---------- */
+let D = 0;
+function measure() { D = document.querySelector(".disc").getBoundingClientRect().width; }
+function drawVinyl() {
+  const cv = $("vinyl");
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const size = Math.min(2600, Math.round(D * dpr));
+  if (!size) return;
+  cv.width = cv.height = size;
+  const ctx = cv.getContext("2d");
+  const r = size / 2, px = size / D;
+  ctx.clearRect(0, 0, size, size);
+
+  const body = ctx.createRadialGradient(r, r, r * 0.3, r, r, r);
+  body.addColorStop(0, "#0d0d10"); body.addColorStop(1, "#050506");
+  ctx.fillStyle = body; ctx.beginPath(); ctx.arc(r, r, r, 0, Math.PI * 2); ctx.fill();
+
+  const gStart = r * 0.36, gEnd = r * 0.965;
+  const gaps = [0.52, 0.64, 0.75, 0.86].map(f => r * f);
+  for (let rad = gStart; rad < gEnd; rad += Math.max(1, px * 0.9)) {
+    const nearGap = gaps.some(g => Math.abs(rad - g) < r * 0.006);
+    ctx.strokeStyle = nearGap ? "rgba(255,255,255,0.025)" : `rgba(255,255,255,${0.035 + 0.03 * Math.random()})`;
+    ctx.lineWidth = nearGap ? px * 1.6 : px * 0.5;
+    ctx.beginPath(); ctx.arc(r, r, rad, 0, Math.PI * 2); ctx.stroke();
+  }
+  ctx.strokeStyle = "rgba(255,255,255,.07)"; ctx.lineWidth = px;
+  ctx.beginPath(); ctx.arc(r, r, r * 0.985, 0, Math.PI * 2); ctx.stroke();
+
+  // label: the album cover, cropped to a circle
+  const lr = r * 0.34;
+  ctx.save(); ctx.beginPath(); ctx.arc(r, r, lr, 0, Math.PI * 2); ctx.clip();
+  if (curArt) {
+    ctx.drawImage(curArt, r - lr, r - lr, lr * 2, lr * 2);
+    const vg = ctx.createRadialGradient(r, r, lr * 0.6, r, r, lr);
+    vg.addColorStop(0, "rgba(0,0,0,0)"); vg.addColorStop(1, "rgba(0,0,0,.25)");
+    ctx.fillStyle = vg; ctx.fillRect(r - lr, r - lr, lr * 2, lr * 2);
+  } else {
+    const lg = ctx.createRadialGradient(r - lr * 0.3, r - lr * 0.3, lr * 0.1, r, r, lr);
+    lg.addColorStop(0, "#f2f2f4"); lg.addColorStop(1, "#d6d6dc");
+    ctx.fillStyle = lg; ctx.fillRect(r - lr, r - lr, lr * 2, lr * 2);
+    ctx.fillStyle = "#6B6B75"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.font = `italic ${lr * 0.16}px "Bodoni Moda", Didot, Georgia, serif`;
+    ctx.fillText(cur ? cur.title.slice(0, 24) : "Vinyl", r, r - lr * 0.4);
+    ctx.font = `${lr * 0.09}px "Familjen Grotesk", "Avenir Next", Arial, sans-serif`;
+    ctx.fillText("33⅓", r, r + lr * 0.45);
+  }
+  ctx.restore();
+  ctx.strokeStyle = "rgba(255,255,255,.12)"; ctx.lineWidth = px;
+  ctx.beginPath(); ctx.arc(r, r, lr * 0.93, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = "#1a1a1e"; ctx.beginPath(); ctx.arc(r, r, r * 0.018, 0, Math.PI * 2); ctx.fill();
+}
+
+/* ---------- Spotify auth (PKCE: no server or secret needed) ---------- */
+const SCOPES = "user-read-currently-playing user-read-playback-state user-modify-playback-state";
+const REDIRECT = location.origin + location.pathname;
+const TOKEN_URL = "https://accounts.spotify.com/api/token";
+
+function randStr(n) {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  const a = crypto.getRandomValues(new Uint8Array(n));
+  return Array.from(a, b => chars[b % chars.length]).join("");
+}
+async function challengeFor(v) {
+  const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(v));
+  return btoa(String.fromCharCode(...new Uint8Array(d))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+async function login() {
+  const verifier = randStr(64), st = randStr(16);
+  LS.set("sp_verifier", verifier); LS.set("sp_state", st);
+  const p = new URLSearchParams({
+    client_id: LS.get("sp_client_id"), response_type: "code", redirect_uri: REDIRECT,
+    code_challenge_method: "S256", code_challenge: await challengeFor(verifier), scope: SCOPES, state: st,
+  });
+  location.href = "https://accounts.spotify.com/authorize?" + p;
+}
+function saveTokens(j) {
+  LS.set("sp_access", j.access_token);
+  if (j.refresh_token) LS.set("sp_refresh", j.refresh_token);
+  LS.set("sp_expires", String(Date.now() + (j.expires_in - 60) * 1000));
+}
+function logout() { ["sp_access", "sp_refresh", "sp_expires"].forEach(LS.del); showScreen(); }
+async function handleRedirect() {
+  const q = new URLSearchParams(location.search);
+  const code = q.get("code"), err = q.get("error");
+  if (!code && !err) return;
+  history.replaceState(null, "", REDIRECT);
+  if (err) { toast("Spotify login was cancelled. Tap “Log in with Spotify” to try again."); return; }
+  if (q.get("state") !== LS.get("sp_state")) { toast("Login check failed. Tap “Log in with Spotify” again."); return; }
+  try {
+    const r = await fetch(TOKEN_URL, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ client_id: LS.get("sp_client_id"), grant_type: "authorization_code", code, redirect_uri: REDIRECT, code_verifier: LS.get("sp_verifier") }) });
+    if (!r.ok) throw new Error(r.status);
+    saveTokens(await r.json());
+  } catch (e) { toast("Spotify didn’t accept the login. Check the Client ID and Redirect URI, then try again."); }
+}
+let refreshing = null;
+async function refreshToken() {
+  const rt = LS.get("sp_refresh"); if (!rt) return false;
+  try {
+    const r = await fetch(TOKEN_URL, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ grant_type: "refresh_token", refresh_token: rt, client_id: LS.get("sp_client_id") }) });
+    if (r.status === 400 || r.status === 401) { logout(); return false; } // refresh token expired or revoked
+    if (!r.ok) return false;
+    saveTokens(await r.json()); return true;
+  } catch (e) { return false; } // offline: keep tokens, try later
+}
+async function accessToken() {
+  if (!LS.get("sp_access")) return null;
+  if (Date.now() > +LS.get("sp_expires")) {
+    refreshing = refreshing || refreshToken().finally(() => { refreshing = null; });
+    if (!(await refreshing)) return null;
+  }
+  return LS.get("sp_access");
+}
+let backoffUntil = 0;
+async function api(path, method = "GET", body) {
+  const t = await accessToken();
+  if (!t) { if (!LS.get("sp_access")) showScreen(); return null; }
+  const opts = { method, headers: { Authorization: "Bearer " + t } };
+  if (body) { opts.headers["Content-Type"] = "application/json"; opts.body = JSON.stringify(body); }
+  const r = await fetch("https://api.spotify.com/v1" + path, opts);
+  if (r.status === 401) { if (await refreshToken()) return api(path, method, body); logout(); return null; }
+  if (r.status === 429) { backoffUntil = Date.now() + (parseInt(r.headers.get("Retry-After") || "10", 10) * 1000); }
+  return r;
+}
+
+/* ---------- Screens ---------- */
+function showScreen() {
+  const hasId = !!LS.get("sp_client_id"), hasToken = !!LS.get("sp_access");
+  $("setup").hidden = hasId;
+  $("login").hidden = !hasId || hasToken;
+  $("player").hidden = !hasToken;
+  $("discArea").setAttribute("aria-hidden", hasToken ? "false" : "true");
+  if (hasToken) poll(); else { setPlayingUI(false); }
+}
+$("redirect").textContent = REDIRECT;
+$("copy").onclick = async () => {
+  try { await navigator.clipboard.writeText(REDIRECT); $("copy").textContent = "Copied"; }
+  catch (e) { const sel = getSelection(), rg = document.createRange(); rg.selectNodeContents($("redirect")); sel.removeAllRanges(); sel.addRange(rg); toast("Selected. Copy it from the menu."); }
+};
+$("saveConnect").onclick = () => {
+  const id = $("clientId").value.trim();
+  if (!/^[0-9a-zA-Z]{32}$/.test(id)) { toast("That doesn’t look like a Client ID. It’s 32 letters and numbers."); return; }
+  LS.set("sp_client_id", id); login();
+};
+$("loginBtn").onclick = login;
+$("changeId").onclick = () => { LS.del("sp_client_id"); showScreen(); };
+$("disconnect").onclick = logout;
+
+/* ---------- Playback state ---------- */
+function pickImage(imgs) {
+  if (!imgs || !imgs.length) return null;
+  // smallest image that is still sharp on the label
+  const want = Math.min(640, D * 0.34 * Math.min(devicePixelRatio || 1, 2));
+  const sorted = imgs.slice().sort((a, b) => (a.width || 0) - (b.width || 0));
+  return (sorted.find(i => (i.width || 640) >= want) || sorted[sorted.length - 1]).url;
+}
+function trackFrom(it) {
+  const ep = it.type === "episode";
+  return {
+    id: it.id || it.uri,
+    title: it.name,
+    artist: ep ? (it.show && it.show.name) || "" : (it.artists || []).map(a => a.name).join(", "),
+    album: ep ? (it.show && it.show.publisher) || "" : (it.album && it.album.name) || "",
+    dur: (it.duration_ms || 0) / 1000,
+    art: pickImage(ep ? ((it.images && it.images.length) ? it.images : it.show && it.show.images) : it.album && it.album.images),
+  };
+}
+function applyPlayback(pb) {
+  if (!pb || !pb.item) {
+    if (cur) { cur = null; curArt = null; swapRecord(); }
+    $("title").textContent = "Nothing playing";
+    $("artist").textContent = ""; $("sep").textContent = "";
+    $("album").textContent = "Start music in Spotify on any device and it shows up here.";
+    $("deviceName").textContent = "";
+    $("progress").hidden = true;
+    if (performance.now() > state.lockUntil) setPlayingUI(false);
+    return;
+  }
+  $("progress").hidden = false;
+  if (performance.now() > state.lockUntil) setPlayingUI(pb.is_playing);
+  if (!state.dragging) { state.basePos = pb.progress_ms / 1000; state.lastSync = performance.now(); }
+  $("deviceName").textContent = pb.device && pb.device.name ? `Playing on ${pb.device.name}` : "";
+  const t = trackFrom(pb.item);
+  if (!cur || cur.id !== t.id) { cur = t; renderInfo(); loadArt(t); }
+}
+async function loadArt(t) {
+  const img = await loadImage(t.art);
+  if (cur !== t) return; // track changed while loading
+  curArt = img;
+  const pal = img && paletteFrom(img);
+  setPalette(pal || DEFAULT_PALETTE, false);
+  swapRecord();
+}
+function renderInfo() {
+  $("title").textContent = cur.title;
+  $("artist").textContent = cur.artist;
+  $("sep").textContent = cur.album ? ", " : "";
+  $("album").textContent = cur.album;
+  $("dur").textContent = fmt(cur.dur);
+  document.title = `${cur.title} by ${cur.artist}`;
+}
+let swapping = false, swapQueued = false;
+function swapRecord() {
+  if (swapping) { swapQueued = true; return; }
+  swapping = true;
+  const rec = $("record");
+  const out = matchMedia("(orientation: portrait)").matches ? "0 -55%" : "-55% 0";
+  rec.animate([{ translate: "0 0" }, { translate: out }], { duration: reduceMotion ? 1 : 380, easing: "cubic-bezier(.5,0,.75,0)", fill: "forwards" })
+    .finished.then(() => { drawVinyl();
+      return rec.animate([{ translate: out }, { translate: "0 0" }], { duration: reduceMotion ? 1 : 520, easing: "cubic-bezier(.2,.9,.3,1)", fill: "forwards" }).finished; })
+    .then(() => { swapping = false; if (swapQueued) { swapQueued = false; swapRecord(); } });
+}
+function setPlayingUI(p) {
+  if (p !== state.playing) { state.basePos = state.pos; state.lastSync = performance.now(); }
+  state.playing = p;
+  $("play").setAttribute("aria-label", p ? "Pause" : "Play");
+  $("playIcon").innerHTML = p ? '<path d="M7 5h4v14H7zM13 5h4v14h-4z"/>' : '<path d="M8 5v14l11-7z"/>';
+  if (p) requestWake();
+}
+function renderProgress() {
+  if (!cur) return;
+  const f = cur.dur ? Math.min(1, state.pos / cur.dur) : 0;
+  $("fill").style.width = (f * 100) + "%";
+  $("knob").style.left = (f * 100) + "%";
+  $("cur").textContent = fmt(state.pos);
+  $("bar").setAttribute("aria-valuenow", Math.round(f * 100));
+}
+
+/* ---------- Polling ---------- */
+let pollTimer;
+async function poll() {
+  clearTimeout(pollTimer);
+  if (document.hidden || !LS.get("sp_access")) return;
+  if (Date.now() < backoffUntil) { pollTimer = setTimeout(poll, backoffUntil - Date.now()); return; }
+  try {
+    const r = await api("/me/player?additional_types=episode");
+    if (r && r.status === 200) applyPlayback(await r.json());
+    else if (r && r.status === 204) applyPlayback(null);
+  } catch (e) { /* offline: try again next tick */ }
+  pollTimer = setTimeout(poll, 3000);
+}
+
+/* ---------- Controls ---------- */
+function afterControl(r, revert) {
+  if (!r) return;
+  if (r.status === 404) { revert && revert(); toast("No active device. Open Spotify on a device and play something first."); }
+  else if (r.status === 403) { revert && revert(); toast("Spotify didn’t allow that right now."); }
+  else if (r.status >= 400 && r.status !== 429) { revert && revert(); toast("That didn’t go through. Try again."); }
+  clearTimeout(pollTimer); pollTimer = setTimeout(poll, 700);
+}
+async function togglePlay() {
+  const want = !state.playing;
+  setPlayingUI(want); state.lockUntil = performance.now() + 2500;
+  try { afterControl(await api(want ? "/me/player/play" : "/me/player/pause", "PUT"), () => { state.lockUntil = 0; setPlayingUI(!want); }); }
+  catch (e) { toast("Can’t reach Spotify. Check the connection."); setPlayingUI(!want); }
+}
+async function skip(dir) {
+  try {
+    if (dir < 0 && state.pos > 3) { state.basePos = 0; state.lastSync = performance.now(); afterControl(await api("/me/player/seek?position_ms=0", "PUT")); return; }
+    afterControl(await api(dir > 0 ? "/me/player/next" : "/me/player/previous", "POST"));
+  } catch (e) { toast("Can’t reach Spotify. Check the connection."); }
+}
+$("play").onclick = togglePlay;
+$("discArea").onclick = () => { if (LS.get("sp_access")) togglePlay(); };
+$("next").onclick = () => skip(1);
+$("prev").onclick = () => skip(-1);
+
+const bar = $("bar");
+function seekLocal(e) {
+  if (!cur) return;
+  const b = bar.getBoundingClientRect();
+  const f = Math.min(1, Math.max(0, (e.clientX - b.left) / b.width));
+  state.basePos = state.pos = f * cur.dur; state.lastSync = performance.now(); renderProgress();
+}
+bar.addEventListener("pointerdown", e => { state.dragging = true; bar.setPointerCapture(e.pointerId); seekLocal(e); });
+bar.addEventListener("pointermove", e => { if (bar.hasPointerCapture(e.pointerId)) seekLocal(e); });
+bar.addEventListener("pointerup", async e => {
+  state.dragging = false; seekLocal(e);
+  try { afterControl(await api(`/me/player/seek?position_ms=${Math.round(state.pos * 1000)}`, "PUT")); } catch (err) {}
+});
+
+addEventListener("keydown", e => {
+  if (e.target.tagName === "INPUT" || $("player").hidden) return;
+  if (e.code === "Space") { e.preventDefault(); togglePlay(); }
+  if (e.code === "ArrowRight") skip(1);
+  if (e.code === "ArrowLeft") skip(-1);
+});
+
+let wake = null;
+async function requestWake() {
+  try { if ("wakeLock" in navigator && !wake) { wake = await navigator.wakeLock.request("screen"); wake.addEventListener("release", () => wake = null); } } catch (e) {}
+}
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") { poll(); if (state.playing) requestWake(); }
+});
+
+/* ---------- Main loop ---------- */
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.1, (now - last) / 1000); last = now;
+  const target = state.playing ? RPM_DEG : 0;
+  state.omega += (target - state.omega) * Math.min(1, dt * (state.playing ? 2.4 : 1.4));
+  if (Math.abs(state.omega) < 0.05) state.omega = 0;
+  state.angle = (state.angle + state.omega * dt) % 360;
+  $("record").style.transform = `rotate(${state.angle}deg)`;
+  if (cur && !state.dragging) {
+    state.pos = state.playing ? Math.min(cur.dur, state.basePos + (now - state.lastSync) / 1000) : state.basePos;
+    renderProgress();
+  }
+  renderShader(dt);
+  requestAnimationFrame(frame);
+}
+
+/* ---------- Boot ---------- */
+(async () => {
+  initShader(); setPalette(DEFAULT_PALETTE, true);
+  measure(); drawVinyl();
+  let rt;
+  addEventListener("resize", () => { resizeShader(); clearTimeout(rt); rt = setTimeout(() => { measure(); drawVinyl(); }, 150); });
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => drawVinyl());
+  requestAnimationFrame(frame);
+  await handleRedirect();
+  showScreen();
+})();
+</script>
+</body>
+</html>
