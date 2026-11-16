@@ -11,7 +11,7 @@
 <title>Vinyl</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,400;0,6..96,600;1,6..96,400&family=Familjen+Grotesk:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,400;0,6..96,600;1,6..96,400&family=Familjen+Grotesk:wght@400;500;600&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
     --paper: #FBFBFA;
@@ -72,26 +72,35 @@
     grid-template-columns: minmax(0, 1fr);
     row-gap: clamp(16px, 3vh, 32px);
   }
-  .info { grid-template-areas: "meta" "progress" "controls" "device"; }
+  /* Player card (from the Figma design): frosted panel, white text */
+  .info {
+    grid-template-areas: "meta" "progress" "controls" "device";
+    top: auto; left: clamp(20px, 4vw, 72px); bottom: clamp(20px, 4vw, 72px);
+    width: clamp(280px, 28vw, 540px);
+    padding: clamp(20px, 2vw, 40px); row-gap: clamp(10px, 1vw, 20px);
+    background: rgba(0, 0, 0, .05); border-radius: clamp(20px, 2vw, 40px);
+    -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+    color: #fff; font-family: "Inter", "Helvetica Neue", Arial, sans-serif;
+  }
   .meta { grid-area: meta; min-width: 0; }
-  .controls { grid-area: controls; display: flex; align-items: center; gap: clamp(8px, 1.4vw, 18px); }
+  .controls { grid-area: controls; display: flex; align-items: center; justify-content: space-between; }
   .progress { grid-area: progress; }
-  .device { grid-area: device; margin: 0; font-size: 14px; color: var(--graphite); display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+  .device { grid-area: device; margin: 0; font-size: clamp(12px, 1vw, 18px); color: #eee; display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
 
   .title {
-    font-family: var(--serif); font-weight: 400; font-style: italic;
-    font-size: clamp(30px, 3.5vw, 64px); line-height: 1.04; letter-spacing: -.015em;
-    margin: 0 0 .25em; text-wrap: balance;
+    font-weight: 700; font-size: clamp(22px, 2.1vw, 42px); line-height: 1.04; letter-spacing: -.015em;
+    margin: 0 0 clamp(6px, .7vw, 14px);
     display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
   }
-  .sub { margin: 0; font-size: clamp(15px, 1.5vw, 21px); line-height: 1.35; color: var(--graphite); }
-  .sub b { color: var(--ink); font-weight: 500; }
+  .sub { margin: 0; font-size: clamp(16px, 1.5vw, 30px); line-height: 1.35; color: #fff; }
+  .sub b { font-weight: 600; }
+  .sub #sep { color: rgba(255, 255, 255, .4); }
 
   .bar { position: relative; height: 24px; cursor: pointer; touch-action: none; display: flex; align-items: center; }
-  .bar::before { content: ""; position: absolute; left: 0; right: 0; height: 3px; border-radius: 3px; background: var(--hairline); }
-  .fill { position: absolute; left: 0; height: 3px; border-radius: 3px; background: var(--ink); width: 0; }
-  .knob { position: absolute; width: 12px; height: 12px; border-radius: 50%; background: var(--ink); transform: translateX(-50%); left: 0; }
-  .times { display: flex; justify-content: space-between; font-size: 13px; color: var(--graphite); font-variant-numeric: tabular-nums; margin-top: 2px; }
+  .bar::before { content: ""; position: absolute; left: 0; right: 0; height: 3px; border-radius: 3px; background: rgba(255, 255, 255, .12); }
+  .fill { position: absolute; left: 0; height: 3px; border-radius: 3px; background: #fff; width: 0; }
+  .knob { display: none; }
+  .times { display: flex; justify-content: space-between; font-family: var(--sans); font-size: clamp(13px, 1.1vw, 20px); color: #fff; font-variant-numeric: tabular-nums; margin-top: 2px; }
 
   .btn {
     appearance: none; border: 0; background: transparent; color: var(--ink);
@@ -99,13 +108,15 @@
     transition: background .2s, transform .15s;
   }
   .btn:active { transform: scale(.94); }
-  .btn:hover { background: var(--hairline); }
+  .btn:hover { background: rgba(255, 255, 255, .14); }
   .btn svg { width: 24px; height: 24px; }
-  .btn.play { width: 72px; height: 72px; background: var(--ink); color: var(--paper); }
-  .btn.play:hover { background: var(--ink); }
-  .btn.play svg { width: 28px; height: 28px; }
+  .btn.play { width: 64px; height: 64px; }
+  .btn.play svg { width: 64px; height: 64px; }
+  .info .btn { color: #fff; }
+  .info .btn:focus-visible, .info .text-btn:focus-visible, .bar:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
   .btn:focus-visible, .text-btn:focus-visible, .pill:focus-visible, input:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
   .text-btn { appearance: none; border: 0; background: none; padding: 6px 0; font: inherit; color: var(--graphite); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+  .info .text-btn { color: #eee; }
 
   /* Connect pane */
   .connect {
@@ -141,13 +152,12 @@
     :root { --disc: 140vw; }
     .disc { left: calc(55vw - var(--disc) / 2); top: calc(64vh - var(--disc)); }
     .info {
-      width: auto; right: 0; top: 64vh; text-align: center; align-content: center;
-      padding: clamp(16px, 2.4vh, 32px) clamp(28px, 6vw, 80px) clamp(18px, 3vh, 36px);
-      row-gap: clamp(14px, 2.4vh, 30px);
+      left: 50%; transform: translateX(-50%); bottom: clamp(20px, 4vh, 56px);
+      width: min(440px, calc(100vw - 40px)); padding: 24px; row-gap: 12px; border-radius: 24px;
     }
-    .title { font-size: clamp(32px, 6vw, 68px); -webkit-line-clamp: 2; }
-    .sub { font-size: clamp(16px, 2.4vw, 22px); }
-    .controls, .device { justify-content: center; gap: clamp(18px, 4vw, 40px); }
+    .title { font-size: clamp(22px, 3.4vw, 30px); -webkit-line-clamp: 2; }
+    .sub { font-size: clamp(16px, 2.4vw, 20px); }
+    .device { font-size: 12px; }
     .connect { left: 50%; transform: translate(-50%, -50%); }
   }
   @media (prefers-reduced-motion: reduce) { .toast { transition: none; } }
