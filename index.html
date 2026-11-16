@@ -152,8 +152,8 @@
     :root { --disc: 140vw; }
     .disc { left: calc(55vw - var(--disc) / 2); top: calc(64vh - var(--disc)); }
     .info {
-      left: 50%; transform: translateX(-50%); bottom: clamp(20px, 4vh, 56px);
-      width: min(440px, calc(100vw - 40px)); padding: 24px; row-gap: 12px; border-radius: 24px;
+      left: 16px; right: 16px; width: auto; bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+      padding: 24px; row-gap: 12px; border-radius: 24px;
     }
     .title { font-size: clamp(22px, 3.4vw, 30px); -webkit-line-clamp: 2; }
     .sub { font-size: clamp(16px, 2.4vw, 20px); }
