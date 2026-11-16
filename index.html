@@ -197,15 +197,15 @@
       <svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM4 5v14l10.5-7z"/></svg>
     </button>
   </div>
-  <p class="device"><span id="deviceName"></span><button class="text-btn" id="disconnect">Disconnect Spotify</button></p>
+  <p class="device"><span id="deviceName"></span><button class="text-btn" id="playHere" hidden>Play here</button><button class="text-btn" id="unlock" hidden>Turn on sound</button><button class="text-btn" id="disconnect">Disconnect Spotify</button></p>
 </main>
 
 <section class="pane connect" id="setup" hidden>
   <h1>Connect Spotify</h1>
-  <p>This player shows whatever is playing on your Spotify account and controls it. It needs a free Spotify developer app first.</p>
+  <p>This page plays Spotify music on this device and shows it as a spinning record. It needs Spotify Premium and a free Spotify developer app.</p>
   <ol>
     <li>Open <b>developer.spotify.com/dashboard</b> and create an app.</li>
-    <li>Add the address below as its <b>Redirect URI</b>, tick <b>Web API</b>, and save.</li>
+    <li>Add the address below as its <b>Redirect URI</b>, tick <b>Web API</b> and <b>Web Playback SDK</b>, and save.</li>
     <li>Copy the app’s <b>Client ID</b> and paste it here.</li>
   </ol>
   <div class="field">
@@ -221,7 +221,7 @@
 
 <section class="pane connect" id="login" hidden>
   <h1>Connect Spotify</h1>
-  <p>Log in with your Spotify account to show what’s playing and control it from here.</p>
+  <p id="loginText">Log in with your Spotify account to play music on this device and control it from here.</p>
   <div class="actions">
     <button class="pill" id="loginBtn">Log in with Spotify</button>
     <button class="text-btn" id="changeId">Change Client ID</button>
@@ -425,7 +425,8 @@ function drawVinyl() {
 }
 
 /* ---------- Spotify auth (PKCE: no server or secret needed) ---------- */
-const SCOPES = "user-read-currently-playing user-read-playback-state user-modify-playback-state";
+// streaming lets this page play audio itself (Web Playback SDK); the two user-read scopes are what Spotify's player setup has asked for
+const SCOPES = "user-read-currently-playing user-read-playback-state user-modify-playback-state streaming user-read-email user-read-private";
 const REDIRECT = location.origin + location.pathname;
 const TOKEN_URL = "https://accounts.spotify.com/api/token";
 
@@ -451,8 +452,14 @@ function saveTokens(j) {
   LS.set("sp_access", j.access_token);
   if (j.refresh_token) LS.set("sp_refresh", j.refresh_token);
   LS.set("sp_expires", String(Date.now() + (j.expires_in - 60) * 1000));
+  if (j.scope) LS.set("sp_granted", j.scope);
 }
-function logout() { ["sp_access", "sp_refresh", "sp_expires"].forEach(LS.del); showScreen(); }
+function clearSession() {
+  try { player && player.disconnect(); } catch (e) {}
+  player = null; deviceId = null; isHere = false; sdkActive = false;
+  ["sp_access", "sp_refresh", "sp_expires"].forEach(LS.del);
+}
+function logout() { clearSession(); showScreen(); }
 async function handleRedirect() {
   const q = new URLSearchParams(location.search);
   const code = q.get("code"), err = q.get("error");
@@ -500,12 +507,20 @@ async function api(path, method = "GET", body) {
 
 /* ---------- Screens ---------- */
 function showScreen() {
-  const hasId = !!LS.get("sp_client_id"), hasToken = !!LS.get("sp_access");
+  const hasId = !!LS.get("sp_client_id");
+  let hasToken = !!LS.get("sp_access");
+  if (hasToken && !(LS.get("sp_granted") || "").split(" ").includes("streaming")) {
+    // login from before playback existed, or Spotify did not grant playback permission
+    $("loginText").textContent = LS.get("sp_granted")
+      ? "Spotify did not allow playback. In your app’s settings on the Spotify developer dashboard, tick Web Playback SDK, save, then log in again."
+      : "This version plays music on this device, so Spotify needs to ask for permission once more. Log in again to continue.";
+    clearSession(); hasToken = false;
+  }
   $("setup").hidden = hasId;
   $("login").hidden = !hasId || hasToken;
   $("player").hidden = !hasToken;
   $("discArea").setAttribute("aria-hidden", hasToken ? "false" : "true");
-  if (hasToken) poll(); else { setPlayingUI(false); }
+  if (hasToken) { initPlayer(); poll(); } else { setPlayingUI(false); }
 }
 $("redirect").textContent = REDIRECT;
 $("copy").onclick = async () => {
@@ -545,9 +560,10 @@ function applyPlayback(pb) {
     if (cur) { cur = null; curArt = null; swapRecord(); }
     $("title").textContent = "Nothing playing";
     $("artist").textContent = ""; $("sep").textContent = "";
-    $("album").textContent = "Start music in Spotify on any device and it shows up here.";
+    $("album").textContent = idleText();
     $("deviceName").textContent = "";
     $("progress").hidden = true;
+    isHere = false; renderDevice();
     if (performance.now() > state.lockUntil) setPlayingUI(false);
     return;
   }
@@ -555,8 +571,11 @@ function applyPlayback(pb) {
   if (performance.now() > state.lockUntil) setPlayingUI(pb.is_playing);
   if (!state.dragging) { state.basePos = pb.progress_ms / 1000; state.lastSync = performance.now(); }
   $("deviceName").textContent = pb.device && pb.device.name ? `Playing on ${pb.device.name}` : "";
+  isHere = !!(deviceId && pb.device && pb.device.id === deviceId);
   const t = trackFrom(pb.item);
   if (!cur || cur.id !== t.id) { cur = t; renderInfo(); loadArt(t); }
+  else if (t.dur && Math.abs(t.dur - cur.dur) > 0.5) { cur.dur = t.dur; $("dur").textContent = fmt(cur.dur); }
+  renderDevice();
 }
 async function loadArt(t) {
   const img = await loadImage(t.art);
@@ -601,6 +620,76 @@ function renderProgress() {
   $("bar").setAttribute("aria-valuenow", Math.round(f * 100));
 }
 
+/* ---------- Web Playback SDK: this page is a Spotify speaker ---------- */
+const PLAYER_NAME = "Vinyl Player";
+let player = null, deviceId = null, sdkLoading = false, audioUnlocked = false;
+let isHere = false; // true while this page is the device Spotify is playing on
+let sdkActive = false; // true once the SDK itself has reported playback on this page (it is then the source of truth)
+
+function idleText() {
+  return deviceId ? "Open Spotify, start a song, and choose “" + PLAYER_NAME + "” as the device."
+                  : "Start music in Spotify on any device and it shows up here.";
+}
+function renderDevice() {
+  $("unlock").hidden = !(deviceId && !audioUnlocked);
+  $("playHere").hidden = !(deviceId && cur && !isHere);
+}
+function unlockAudio() {
+  if (!player || audioUnlocked) return;
+  audioUnlocked = true; renderDevice();
+  try { Promise.resolve(player.activateElement()).catch(() => { audioUnlocked = false; renderDevice(); }); }
+  catch (e) { audioUnlocked = false; renderDevice(); }
+}
+// iOS only starts audio after a tap, so the first tap anywhere turns sound on
+document.addEventListener("click", unlockAudio, true);
+document.addEventListener("touchend", unlockAudio, true);
+$("unlock").onclick = unlockAudio;
+
+function initPlayer() {
+  if (player || sdkLoading) return;
+  if (window.Spotify) { createPlayer(); return; }
+  sdkLoading = true;
+  window.onSpotifyWebPlaybackSDKReady = createPlayer;
+  const s = document.createElement("script");
+  s.src = "https://sdk.scdn.co/spotify-player.js"; s.async = true;
+  s.onerror = () => { sdkLoading = false; toast("Can’t load Spotify’s player. You can still control other devices."); };
+  document.head.appendChild(s);
+}
+function createPlayer() {
+  if (player || !LS.get("sp_access")) return;
+  player = new Spotify.Player({
+    name: PLAYER_NAME,
+    getOAuthToken: async cb => { const t = await accessToken(); if (t) cb(t); },
+    volume: 1,
+    enableMediaSession: true, // lock screen and Control Center show the track
+  });
+  player.addListener("ready", ({ device_id }) => { deviceId = device_id; if (!cur) $("album").textContent = idleText(); renderDevice(); });
+  player.addListener("not_ready", () => { deviceId = null; isHere = false; renderDevice(); setTimeout(() => { if (player && !deviceId) player.connect(); }, 3000); });
+  player.addListener("player_state_changed", onSdkState);
+  player.addListener("autoplay_failed", () => { audioUnlocked = false; renderDevice(); toast("Tap the screen to turn on sound."); });
+  player.addListener("initialization_error", () => toast("This browser can’t play Spotify audio here. You can still control other devices."));
+  player.addListener("authentication_error", () => { LS.del("sp_granted"); $("loginText").textContent = "Spotify rejected the player login. Log in again to continue."; clearSession(); showScreen(); });
+  player.addListener("account_error", () => toast("Playing music here needs a Spotify Premium plan that includes more than mobile."));
+  player.addListener("playback_error", () => toast("Spotify couldn’t play that track here."));
+  player.connect();
+}
+function onSdkState(s) {
+  const ct = s && s.track_window && s.track_window.current_track;
+  if (!ct) { sdkActive = false; isHere = false; renderDevice(); return; } // playback moved to another device
+  sdkActive = true;
+  const known = cur && cur.id === (ct.id || ct.uri) ? cur.dur * 1000 : 0;
+  applyPlayback({ is_playing: !s.paused, progress_ms: s.position || 0, device: { id: deviceId, name: PLAYER_NAME },
+    item: Object.assign({}, ct, { duration_ms: s.duration || ct.duration_ms || known }) });
+}
+const sdkCall = p => Promise.resolve(p).catch(() => toast("That didn’t go through. Try again."));
+async function playHere() {
+  unlockAudio();
+  if (!deviceId) { toast(player ? "The player is still starting. Try again in a moment." : "Start a song in Spotify on any device first."); return; }
+  try { afterControl(await api("/me/player", "PUT", { device_ids: [deviceId], play: true })); }
+  catch (e) { toast("Can’t reach Spotify. Check the connection."); }
+}
+$("playHere").onclick = playHere;
+
 /* ---------- Polling ---------- */
 let pollTimer;
 async function poll() {
@@ -609,8 +698,9 @@ async function poll() {
   if (Date.now() < backoffUntil) { pollTimer = setTimeout(poll, backoffUntil - Date.now()); return; }
   try {
     const r = await api("/me/player?additional_types=episode");
-    if (r && r.status === 200) applyPlayback(await r.json());
-    else if (r && r.status === 204) applyPlayback(null);
+    // while the SDK reports playback on this page, ignore the Web API's slower, sometimes stale view of it
+    if (r && r.status === 200) { const pb = await r.json(); if (!(sdkActive && pb.device && pb.device.id === deviceId)) applyPlayback(pb); }
+    else if (r && r.status === 204) { if (!sdkActive) applyPlayback(null); }
   } catch (e) { /* offline: try again next tick */ }
   pollTimer = setTimeout(poll, 3000);
 }
@@ -618,18 +708,25 @@ async function poll() {
 /* ---------- Controls ---------- */
 function afterControl(r, revert) {
   if (!r) return;
-  if (r.status === 404) { revert && revert(); toast("No active device. Open Spotify on a device and play something first."); }
+  if (r.status === 404) { revert && revert(); toast("Nothing is playing yet. Start a song in Spotify and choose “" + PLAYER_NAME + "”."); }
   else if (r.status === 403) { revert && revert(); toast("Spotify didn’t allow that right now."); }
   else if (r.status >= 400 && r.status !== 429) { revert && revert(); toast("That didn’t go through. Try again."); }
   clearTimeout(pollTimer); pollTimer = setTimeout(poll, 700);
 }
 async function togglePlay() {
+  if (!cur) return playHere(); // nothing playing yet: take over on this device
+  if (isHere && player) { unlockAudio(); sdkCall(player.togglePlay()); return; } // local and instant
   const want = !state.playing;
   setPlayingUI(want); state.lockUntil = performance.now() + 2500;
   try { afterControl(await api(want ? "/me/player/play" : "/me/player/pause", "PUT"), () => { state.lockUntil = 0; setPlayingUI(!want); }); }
   catch (e) { toast("Can’t reach Spotify. Check the connection."); setPlayingUI(!want); }
 }
 async function skip(dir) {
+  if (isHere && player) {
+    unlockAudio();
+    if (dir < 0 && state.pos > 3) sdkCall(player.seek(0)); else sdkCall(dir > 0 ? player.nextTrack() : player.previousTrack());
+    return;
+  }
   try {
     if (dir < 0 && state.pos > 3) { state.basePos = 0; state.lastSync = performance.now(); afterControl(await api("/me/player/seek?position_ms=0", "PUT")); return; }
     afterControl(await api(dir > 0 ? "/me/player/next" : "/me/player/previous", "POST"));
@@ -651,6 +748,7 @@ bar.addEventListener("pointerdown", e => { state.dragging = true; bar.setPointer
 bar.addEventListener("pointermove", e => { if (bar.hasPointerCapture(e.pointerId)) seekLocal(e); });
 bar.addEventListener("pointerup", async e => {
   state.dragging = false; seekLocal(e);
+  if (isHere && player) { sdkCall(player.seek(Math.round(state.pos * 1000))); return; }
   try { afterControl(await api(`/me/player/seek?position_ms=${Math.round(state.pos * 1000)}`, "PUT")); } catch (err) {}
 });
 
@@ -666,7 +764,7 @@ async function requestWake() {
   try { if ("wakeLock" in navigator && !wake) { wake = await navigator.wakeLock.request("screen"); wake.addEventListener("release", () => wake = null); } } catch (e) {}
 }
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible") { poll(); if (state.playing) requestWake(); }
+  if (document.visibilityState === "visible") { poll(); if (state.playing) requestWake(); if (player && !deviceId) player.connect(); }
 });
 
 /* ---------- Main loop ---------- */
