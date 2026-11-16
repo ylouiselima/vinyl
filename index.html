@@ -10,8 +10,8 @@
 <meta name="theme-color" content="#FBFBFA">
 <title>Vinyl</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
-<link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,400;0,6..96,600;1,6..96,400&amp;family=Familjen+Grotesk:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,400;0,6..96,600;1,6..96,400&family=Familjen+Grotesk:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root {
     --paper: #FBFBFA;
@@ -20,7 +20,8 @@
     --hairline: rgba(23, 23, 28, 0.12);
     --serif: "Bodoni Moda", "Didot", "Bodoni 72", Georgia, serif;
     --sans: "Familjen Grotesk", "Avenir Next", "Helvetica Neue", Arial, sans-serif;
-    --disc: 100vh; /* landscape: record fills the height, centered on the left edge */
+    --disc: 140vh; /* landscape: oversized record on the right, cropped by the screen */
+    --edge: 34vw;  /* where the record's left edge sits; the player lives left of it */
     color-scheme: light;
     box-sizing: border-box;
     padding-bottom: env(safe-area-inset-bottom, 0px);
@@ -40,23 +41,20 @@
   [hidden] { display: none !important; }
   #bg { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; display: block; }
 
-  .disc-area {
-    position: fixed; top: 0; left: 0; z-index: 1;
-    height: 100%; width: calc(var(--disc) / 2 + 140px);
-    overflow: hidden; cursor: pointer;
-  }
+  .disc-area { position: fixed; inset: 0; z-index: 1; overflow: hidden; pointer-events: none; }
   .disc {
-    position: absolute; top: 0; left: calc(var(--disc) / -2);
+    position: absolute; left: var(--edge); top: calc(55vh - var(--disc) / 2);
     width: var(--disc); height: var(--disc); border-radius: 50%;
-    filter: drop-shadow(0 18px 28px rgba(20, 20, 40, .28)) drop-shadow(0 3px 6px rgba(20, 20, 40, .18));
+    pointer-events: auto; cursor: pointer;
+    box-shadow: 0 24px 60px rgba(20, 20, 40, .30), 0 4px 10px rgba(20, 20, 40, .20);
   }
   .record { position: absolute; inset: 0; border-radius: 50%; will-change: transform; }
   .record canvas { width: 100%; height: 100%; display: block; border-radius: 50%; }
   .sheen {
     position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
-    background: conic-gradient(from 90deg,
-      rgba(255,255,255,0) 0deg, rgba(255,255,255,.10) 30deg, rgba(255,255,255,0) 62deg,
-      rgba(255,255,255,0) 112deg, rgba(255,255,255,.07) 140deg, rgba(255,255,255,0) 170deg, rgba(255,255,255,0) 360deg);
+    background: conic-gradient(from 200deg,
+      rgba(255,255,255,0) 0deg, rgba(255,255,255,.14) 35deg, rgba(255,255,255,0) 70deg,
+      rgba(255,255,255,0) 180deg, rgba(255,255,255,.07) 215deg, rgba(255,255,255,0) 250deg, rgba(255,255,255,0) 360deg);
     -webkit-mask: radial-gradient(circle, transparent 0 34%, #000 35.5%);
             mask: radial-gradient(circle, transparent 0 34%, #000 35.5%);
   }
@@ -66,14 +64,13 @@
     box-shadow: 0 1px 2px rgba(0,0,0,.4);
   }
 
-  /* Both panes share the space beside (landscape) or under (portrait) the record */
+  /* The player sits bottom-left, in the space the record leaves free */
   .pane {
-    position: fixed; z-index: 2; top: 0; right: 0; bottom: 0;
-    left: calc(var(--disc) / 2);
-    padding: clamp(24px, 5vh, 56px) clamp(32px, 6vw, 88px) clamp(24px, 5vh, 56px) clamp(40px, 6vw, 96px);
-    display: grid; align-content: center;
+    position: fixed; z-index: 2; left: 0; top: 0; bottom: 0; width: var(--edge);
+    padding: clamp(24px, 5vh, 56px) clamp(12px, 2vw, 28px) clamp(28px, 6vh, 64px) clamp(28px, 4vw, 64px);
+    display: grid; align-content: end;
     grid-template-columns: minmax(0, 1fr);
-    row-gap: clamp(24px, 5vh, 48px);
+    row-gap: clamp(16px, 3vh, 32px);
   }
   .info { grid-template-areas: "meta" "progress" "controls" "device"; }
   .meta { grid-area: meta; min-width: 0; }
@@ -83,11 +80,11 @@
 
   .title {
     font-family: var(--serif); font-weight: 400; font-style: italic;
-    font-size: clamp(40px, 5.8vw, 84px); line-height: 1.02; letter-spacing: -.015em;
+    font-size: clamp(30px, 3.5vw, 64px); line-height: 1.04; letter-spacing: -.015em;
     margin: 0 0 .25em; text-wrap: balance;
     display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
   }
-  .sub { margin: 0; font-size: clamp(16px, 1.9vw, 23px); color: var(--graphite); }
+  .sub { margin: 0; font-size: clamp(15px, 1.5vw, 21px); line-height: 1.35; color: var(--graphite); }
   .sub b { color: var(--ink); font-weight: 500; }
 
   .bar { position: relative; height: 24px; cursor: pointer; touch-action: none; display: flex; align-items: center; }
@@ -111,8 +108,15 @@
   .text-btn { appearance: none; border: 0; background: none; padding: 6px 0; font: inherit; color: var(--graphite); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 
   /* Connect pane */
-  .connect { max-width: 40rem; row-gap: clamp(16px, 3vh, 28px); user-select: text; -webkit-user-select: text; }
-  .connect h1 { font-family: var(--serif); font-style: italic; font-weight: 400; font-size: clamp(40px, 5.4vw, 72px); line-height: 1.02; margin: 0; }
+  .connect {
+    top: 50%; bottom: auto; left: clamp(16px, 3vw, 48px); transform: translateY(-50%);
+    width: min(32rem, calc(100vw - 32px)); max-height: calc(100vh - 32px); overflow-y: auto;
+    padding: clamp(22px, 3vw, 36px); align-content: start; row-gap: clamp(14px, 2.4vh, 22px);
+    background: rgba(255, 255, 255, .88); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px);
+    border-radius: 24px; box-shadow: 0 20px 50px rgba(20, 20, 40, .18);
+    user-select: text; -webkit-user-select: text;
+  }
+  .connect h1 { font-family: var(--serif); font-style: italic; font-weight: 400; font-size: clamp(34px, 4vw, 52px); line-height: 1.02; margin: 0; }
   .connect p { margin: 0; font-size: clamp(15px, 1.6vw, 18px); line-height: 1.5; color: var(--graphite); max-width: 34em; }
   .connect ol { margin: 0; padding-left: 1.2em; font-size: clamp(15px, 1.6vw, 18px); line-height: 1.55; color: var(--graphite); }
   .connect ol b { color: var(--ink); font-weight: 500; }
@@ -134,36 +138,33 @@
   .toast.show { opacity: 1; transform: translate(-50%, 0); }
 
   @media (orientation: portrait) {
-    :root { --disc: 100vw; }
-    .disc-area { width: var(--disc); height: calc(var(--disc) / 2 + 140px); }
-    .disc { left: 0; top: calc(var(--disc) / -2); }
-    .pane {
-      left: 0; top: calc(var(--disc) / 2);
-      padding: clamp(20px, 3vh, 40px) clamp(28px, 6vw, 80px) clamp(18px, 3vh, 36px);
-      row-gap: clamp(22px, 3.6vh, 44px);
+    :root { --disc: 140vw; }
+    .disc { left: calc(55vw - var(--disc) / 2); top: calc(64vh - var(--disc)); }
+    .info {
+      width: auto; right: 0; top: 64vh; text-align: center; align-content: center;
+      padding: clamp(16px, 2.4vh, 32px) clamp(28px, 6vw, 80px) clamp(18px, 3vh, 36px);
+      row-gap: clamp(14px, 2.4vh, 30px);
     }
-    .info { text-align: center; }
-    .title { font-size: clamp(40px, 7.4vw, 84px); }
-    .sub { font-size: clamp(17px, 2.6vw, 24px); }
+    .title { font-size: clamp(32px, 6vw, 68px); -webkit-line-clamp: 2; }
+    .sub { font-size: clamp(16px, 2.4vw, 22px); }
     .controls, .device { justify-content: center; gap: clamp(18px, 4vw, 40px); }
-    .btn.play { width: 84px; height: 84px; }
-    .connect { max-width: none; overflow-y: auto; }
+    .connect { left: 50%; transform: translate(-50%, -50%); }
   }
   @media (prefers-reduced-motion: reduce) { .toast { transition: none; } }
 </style>
-<script type='text/javascript' nonce='PRrxUp0AIN6SbTMnYBJyGg==' src='https://a385d07b-3ebf-48d1-81d0-0f9f8ff33d2b.frame.claudeusercontent.com/GGLFT_X4EIOi5H-Fxi3RCGqKJuestkeGvr8_Sfr4pE--g4yW6CPvVt3Hsa1Si_Y7z5ELhOb8Px7xW6h9_BpEOMN1YJhJknW6HffWbSj9e3lY3-Natt-Cy5bQxLoWfL6br76ry6ldBraOUz9OoQ0DPmfDR5Kj-qF9cVPSH0WNppLKuXUrEJgd1wwB6yj02LMDvM7N7cz0fZNpB6-adedHrmP-WE8MNY5kcbU4MUdS82djsMfd-cy0z2fIvnKePd_WI46KEOnw62M6ttRJVOrTbF4LP1y86WLbqOUOOJZ8A5aqOEfgKTZ7XkGElM0d71lt6rwJrExdCm-V7Z0jziNvdXDJkoEm1c0XlXkqjKWbV2GLbnHwwd4uILfqw6CZriHvVxzGS-6XUiHiAQiwyuKNea2FQVgg_2Vo6fheFHjmSbNQkq26tL-eKulfICWUEsaqd9SDf6nVVjS30jOAKXw5l1ARHvt-EkRYFlAk5Wgu5fkSUE4vbR3WHXZxjk9s5b1wvUcAwL73ZABqv8-OAeAuIvCR6zeblx6o7tlXRUvrgb0aJlmqlWUyuxwDFAUQxjXiZ3vIt-U4Sj8rq01TORTwPBfioQZhWtV_ZmiCa4C6nAciDE69zYfT87uW2fa0kPs4dOQ1ycy_Jf-t6vAOyFkfsk_93IS18D1c7svrZBMywz4AAf0j4SetRPF9dy1RLLMAgJi-vUo5rvAEEjHiCPqJ6w'></script></head>
+</head>
 <body>
 <canvas id="bg" aria-hidden="true"></canvas>
 
 <div class="disc-area" id="discArea" role="button" aria-label="Play or pause">
-  <div class="disc">
+  <div class="disc" id="disc">
     <div class="record" id="record"><canvas id="vinyl"></canvas></div>
     <div class="sheen"></div>
     <div class="spindle"></div>
   </div>
 </div>
 
-<main class="pane info" id="player" aria-live="polite" hidden="">
+<main class="pane info" id="player" aria-live="polite" hidden>
   <div class="meta">
     <h1 class="title" id="title">Nothing playing</h1>
     <p class="sub" id="subline"><b id="artist"></b><span id="sep"></span><span id="album"></span></p>
@@ -177,19 +178,19 @@
   </div>
   <div class="controls">
     <button class="btn" id="prev" aria-label="Previous track">
-      <svg viewbox="0 0 24 24" fill="currentColor"><path d="M6 5h2v14H6zM20 5v14L9.5 12z"/></svg>
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2v14H6zM20 5v14L9.5 12z"/></svg>
     </button>
     <button class="btn play" id="play" aria-label="Play">
-      <svg viewbox="0 0 24 24" fill="currentColor" id="playIcon"><path d="M8 5v14l11-7z"/></svg>
+      <svg viewBox="0 0 24 24" fill="currentColor" id="playIcon"><path d="M8 5v14l11-7z"/></svg>
     </button>
     <button class="btn" id="next" aria-label="Next track">
-      <svg viewbox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM4 5v14l10.5-7z"/></svg>
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM4 5v14l10.5-7z"/></svg>
     </button>
   </div>
   <p class="device"><span id="deviceName"></span><button class="text-btn" id="disconnect">Disconnect Spotify</button></p>
 </main>
 
-<section class="pane connect" id="setup" hidden="">
+<section class="pane connect" id="setup" hidden>
   <h1>Connect Spotify</h1>
   <p>This player shows whatever is playing on your Spotify account and controls it. It needs a free Spotify developer app first.</p>
   <ol>
@@ -208,7 +209,7 @@
   <button class="pill" id="saveConnect">Save and connect</button>
 </section>
 
-<section class="pane connect" id="login" hidden="">
+<section class="pane connect" id="login" hidden>
   <h1>Connect Spotify</h1>
   <p>Log in with your Spotify account to show what’s playing and control it from here.</p>
   <div class="actions">
@@ -567,8 +568,8 @@ let swapping = false, swapQueued = false;
 function swapRecord() {
   if (swapping) { swapQueued = true; return; }
   swapping = true;
-  const rec = $("record");
-  const out = matchMedia("(orientation: portrait)").matches ? "0 -55%" : "-55% 0";
+  const rec = $("disc"); // slide the whole record off the nearest edge and back
+  const out = matchMedia("(orientation: portrait)").matches ? "0 -100vh" : "100vw 0";
   rec.animate([{ translate: "0 0" }, { translate: out }], { duration: reduceMotion ? 1 : 380, easing: "cubic-bezier(.5,0,.75,0)", fill: "forwards" })
     .finished.then(() => { drawVinyl();
       return rec.animate([{ translate: out }, { translate: "0 0" }], { duration: reduceMotion ? 1 : 520, easing: "cubic-bezier(.2,.9,.3,1)", fill: "forwards" }).finished; })
